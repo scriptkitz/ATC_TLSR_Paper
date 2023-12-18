@@ -287,10 +287,10 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
         scene(&dt, battery_mv, temperature, 1);
         epd_wait_update = 0;
     }
-    // TEST -- TODO: SEC TO MINUTE
-    else if (dt.tm_sec != last_minute)
+    
+    else if (dt.tm_min != last_minute)
     {
-        last_minute = dt.tm_sec;
+        last_minute = dt.tm_min;
         if (dt.tm_hour != last_hour)
         {
             last_hour = dt.tm_hour;
