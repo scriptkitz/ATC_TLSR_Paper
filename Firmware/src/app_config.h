@@ -4,13 +4,24 @@
 extern "C" {
 #endif
 
+#define UART_PRINT_DEBUG_ENABLE 0
+
+/////////////////////////////////////// PRINT DEBUG INFO ///////////////////////////////////////
+#if (UART_PRINT_DEBUG_ENABLE)
+	#define PRINT_BAUD_RATE             					1000000
+	#define DEBUG_INFO_TX_PIN           					GPIO_PB1
+	#define PULL_WAKEUP_SRC_PB1         					PM_PIN_PULLUP_10K
+	#define PB1_OUTPUT_ENABLE         						1
+	#define PB1_DATA_OUT                                    1 //must
+	#include "application/print/u_printf.h"
+#endif
+
 #define CLOCK_SYS_CLOCK_HZ  	24000000
 
 #define ADVERTISING_INTERVAL 1600
 
 #define RAM _attribute_data_retention_ // short version, this is needed to keep the values in ram after sleep
 
-#include "application/print/u_printf.h"
 enum{
 	CLOCK_SYS_CLOCK_1S = CLOCK_SYS_CLOCK_HZ,
 	CLOCK_SYS_CLOCK_1MS = (CLOCK_SYS_CLOCK_1S / 1000),

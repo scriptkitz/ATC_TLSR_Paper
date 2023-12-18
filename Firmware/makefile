@@ -97,7 +97,7 @@ $(LST_FILE): $(ELF_FILE)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-$(BIN_FILE): $(ELF_FILE)
+$(BIN_FILE): $(ELF_FILE) $(LST_FILE)
 	@echo 'Create Flash image (binary format)'
 	@$(TC32_COMPILER_PATH)tc32-elf-objcopy -v -O binary $(ELF_FILE)  $(BIN_FILE)
 	@python $(TEL_PATH)/make/tl_firmware_tools.py add_crc $(BIN_FILE)

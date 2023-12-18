@@ -11,15 +11,12 @@
 #include "flash.h"
 #include "ota.h"
 #include "epd.h"
-#include "time.h"
+#include "etime.h"
 #include "bart_tif.h"
 
 RAM uint8_t battery_level;
 RAM uint16_t battery_mv;
 RAM int16_t temperature;
-
-RAM uint8_t hour_refresh = 100;
-RAM uint8_t minute_refresh = 100;
 
 // Settings
 extern settings_struct settings;
@@ -48,6 +45,8 @@ _attribute_ram_code_ void main_loop(void)
     blt_sdk_main_loop();
     handler_time();
 
+    // 每30秒，修改蓝牙的adv广播数据，包含电池电压，电量，温度
+    // 并发送电量和温度的属性通知
     if (time_reached_period(Timer_CH_1, 30))
     {
         battery_mv = get_battery_mv();
@@ -58,22 +57,10 @@ _attribute_ram_code_ void main_loop(void)
         ble_send_temp(EPD_read_temp() * 10);
     }
 
-    uint8_t current_minute = (get_time() / 60) % 60;
-    if (current_minute != minute_refresh)
-    {
-        minute_refresh = current_minute;
-        uint8_t current_hour = ((get_time() / 60) / 60) % 24;
-        if (current_hour != hour_refresh)
-        {
-            hour_refresh = current_hour;
-            epd_display(get_time(), battery_mv, temperature, 1);
-        }
-        else
-        {
-            epd_display(get_time(), battery_mv, temperature, 0);
-        }
-    }
+    // 超过1分钟，修改屏幕时间温度电压信息，如果超过1小时则全刷，否则局刷
+    epd_update(get_time(), battery_mv, temperature);
 
+    // 每10秒检测蓝牙是否连接，如果连接闪一下灯
     if (time_reached_period(Timer_CH_0, 10))
     {
         if (ble_get_connected())

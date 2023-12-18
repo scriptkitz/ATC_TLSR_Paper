@@ -17,6 +17,7 @@
 #define LED_RED		GPIO_PD2
 #define LED_GREEN	GPIO_PD3
 
+// 板子上的接口
 #define RXD 		GPIO_PA0
 #define TXD			GPIO_PB1
 

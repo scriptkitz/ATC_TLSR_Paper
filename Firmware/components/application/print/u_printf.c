@@ -52,14 +52,12 @@
 
 #include "drivers.h"
 extern int putchar(int c);
-extern int putchar_custom(int c);
 static void printchar(char **str, int c) {
 	if (str) {
 		**str = c;
 		++(*str);
 	} else
 		(void) putchar(c);
-		(void) putchar_custom(c);
 }
 
 #define PAD_RIGHT 1
@@ -207,16 +205,16 @@ static int print(char **out, const char *format, va_list args) {
 	return pc;
 }
 
-//extern void puts(const char* str);
 int u_printf(const char *format, ...) {
 	static char my_printf_buff[1024] = { 0 };
 	char *out = &my_printf_buff[0];
 
+	extern void user_puts(const char* s);
 	
 	va_list args;
 	va_start(args, format );
 	print(&out, format, args);
-	//puts(my_printf_buff);
+	user_puts(my_printf_buff);
 	return 0;
 }
 
