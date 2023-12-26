@@ -175,8 +175,8 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
 
     // Set RAM Y address
     EPD_WriteCmd(0x4F);
-    EPD_WriteData(0xF9);
-    EPD_WriteData(0x00);
+    EPD_WriteData(0x27); // 这个要填最大支持的295+1个MUX, 不能填250
+    EPD_WriteData(0x01);
 
     // 写入黑白图
     EPD_LoadImage(image, size, 0x24);
