@@ -7,7 +7,7 @@
 #define EPD_ENABLE_WRITE_CMD() gpio_write(EPD_DC, 0)
 #define EPD_ENABLE_WRITE_DATA() gpio_write(EPD_DC, 1)
 
-#define EPD_IS_BUSY() (!gpio_read(EPD_BUSY))
+#define EPD_IS_BUSY() (!!gpio_read(EPD_BUSY))
 
 
 void EPD_init(void);

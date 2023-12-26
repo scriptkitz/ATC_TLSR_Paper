@@ -5,7 +5,8 @@
 #include "epd_spi.h"
 
 
-#include "epd_bw_213_ice.h"
+#include "epd_bwr_213.h"
+// #include "epd_bw_213_ice.h"
 
 #include "drivers.h"
 #include "stack/ble/ble.h"
@@ -30,6 +31,7 @@ RAM uint8_t epd_wait_update = 0;
 
 RAM uint8_t last_hour = 0xFF;
 RAM uint8_t last_minute = 0xFF;
+RAM uint8_t last_sec = 0xFF;
 
 const char *BLE_conn_string[] = {"", "B"};
 RAM uint8_t epd_temperature_is_read = 0;
@@ -84,8 +86,9 @@ _attribute_ram_code_ uint8_t EPD_read_temp(void)
     gpio_write(EPD_RESET, 1);
     WaitMs(10);
 
-    epd_temperature = EPD_BW_213_ice_read_temp();
+    epd_temperature = EPD_BWR_213_read_temp();
 
+    printf("Temperature1:%d", epd_temperature);
     EPD_POWER_OFF();
 
     epd_temperature_is_read = 1;
@@ -109,7 +112,8 @@ _attribute_ram_code_ void EPD_Display(unsigned char *image, unsigned char *red_i
     WaitMs(10);
 
 
-    epd_temperature = EPD_BW_213_ice_Display(image, size, full_or_partial);
+    epd_temperature = EPD_BWR_213_Display(image, size, full_or_partial);
+    printf("Temperature2:%d", epd_temperature);
 
     epd_temperature_is_read = 1;
     epd_update_state = 1;
@@ -121,7 +125,7 @@ _attribute_ram_code_ void epd_set_sleep(void)
         EPD_detect_model();
 
 
-    EPD_BW_213_ice_set_sleep();
+    EPD_BWR_213_set_sleep();
 
     EPD_POWER_OFF();
     epd_update_state = 0;
@@ -142,7 +146,7 @@ _attribute_ram_code_ uint8_t epd_state_handler(void)
         }
         else
         {
-            if (EPD_IS_BUSY())
+            if (!EPD_IS_BUSY())
                 epd_set_sleep();
         }
         break;
@@ -300,6 +304,12 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
         {
             scene(&dt, battery_mv, temperature, 0);
         }
+    }
+
+    if(dt.tm_sec != last_sec)
+    {
+        last_sec = dt.tm_sec;
+        // set_led_color(1);
     }
 }
 

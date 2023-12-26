@@ -43,12 +43,12 @@ _attribute_ram_code_ int main (void)    //must run in ramcode
 		
 	if( deepRetWakeUp ){
 		user_init_deepRetn ();
-		printf("\r\n\r\n\r\nBooting deep\r\n\r\n\r\n\r\n");
+		printf("Booting deep");
 	}
 	else{
-		printf("\r\n\r\n\r\nBooting\r\n\r\n\r\n\r\n");
+		printf("Booting");
 		user_init_normal ();
-	}	
+	}
     irq_enable();
 	while (1) {
 		main_loop ();
