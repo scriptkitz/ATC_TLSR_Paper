@@ -95,6 +95,35 @@ const unsigned char DISPLAY = 1 << 2;
 const unsigned char DISABLE_ANALOG = 1 << 1; 
 const unsigned char DISABLE_CLOCK = 1 << 0; 
 
+#define SOURCE_COUNT 176
+#define GATE_COUNT 296
+
+_attribute_ram_code_ void EPD_SetWindows(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end)
+{
+    // Set RAM X- Address Start/End
+    EPD_WriteCmd(0x44);
+    EPD_WriteData(x_start);
+    EPD_WriteData(x_end);
+
+    // Set RAM Y- Address Start/End
+    EPD_WriteCmd(0x45);
+    EPD_WriteData(y_start & 0xFF); // 这个要填最大支持的295+1个MUX, 不能填250
+    EPD_WriteData((y_start >> 8) & 0xFF);
+    EPD_WriteData(y_end & 0xFF);
+    EPD_WriteData((y_end >> 8) & 0xFF);
+};
+
+_attribute_ram_code_ void EPD_SetCursor(uint16_t x, uint16_t y)
+{
+    // Set RAM X address
+    EPD_WriteCmd(0x4E);
+    EPD_WriteData(x);
+
+    // Set RAM Y address
+    EPD_WriteCmd(0x4F);
+    EPD_WriteData(y & 0xFF); // 这个要填最大支持的295+1个MUX, 不能填250
+    EPD_WriteData((y >> 8) & 0xFF);
+}
 
 _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size, uint8_t full_or_partial)
 {    
@@ -142,18 +171,6 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_WriteCmd(0x11);
     EPD_WriteData(0x01);
 
-    // Set RAM X- Address Start/End
-    EPD_WriteCmd(0x44);
-    EPD_WriteData(0x00);
-    EPD_WriteData(0x0F);
-
-    // Set RAM Y- Address Start/End
-    EPD_WriteCmd(0x45);
-    EPD_WriteData(0x27); // 这个要填最大支持的295+1个MUX, 不能填250
-    EPD_WriteData(0x01);
-    EPD_WriteData(0x00);
-    EPD_WriteData(0x00);
-
     // Border waveform control
     EPD_WriteCmd(0x3C);
     EPD_WriteData(0x05);
@@ -162,15 +179,11 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_WriteCmd(0x21);
     EPD_WriteData(0x00);
     EPD_WriteData(0x80);
+    
+    // 设置显示区域
+    EPD_SetWindows(0, 0x0F, 0x127, 0);
 
-    // Set RAM X address
-    EPD_WriteCmd(0x4E);
-    EPD_WriteData(0x00);
-
-    // Set RAM Y address
-    EPD_WriteCmd(0x4F);
-    EPD_WriteData(0x27); // 这个要填最大支持的295+1个MUX, 不能填250
-    EPD_WriteData(0x01);
+    EPD_SetCursor(0, 0x127);
 
     // 写入黑白图
     EPD_LoadImage(image, size, 0x24);
