@@ -72,7 +72,7 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_read_temp(void)
 
     // Display update control
     EPD_WriteCmd(0x22);
-    EPD_WriteData(0x91); // 启用CLK，并只加载温度
+    EPD_WriteData(0xA1); // 启用CLK，并只加载温度
     
     // Master Activation
     EPD_WriteCmd(0x20);
