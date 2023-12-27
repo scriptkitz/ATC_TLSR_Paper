@@ -304,6 +304,7 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
         {
             scene(&dt, battery_mv, temperature, 0);
         }
+        set_led_color(2);
     }
 
     if(dt.tm_sec != last_sec)
