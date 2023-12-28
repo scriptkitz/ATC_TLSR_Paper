@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "common/types.h"
 #include "tl_common.h"
 #include "main.h"
 #include "epd.h"
@@ -8,6 +9,19 @@
 #include "stack/ble/ble.h"
 
 // SSD1675 mixed with SSD1680 EPD Controller
+
+// 0x22 命令
+const unsigned char ENABLE_CLOCK  = 1 << 7; 
+const unsigned char ENABLE_ANALOG = 1 << 6; 
+const unsigned char LOAD_TEMPERATURE = 1 << 5; 
+const unsigned char LOAD_LUT_WITH_DISPLAY_MODE1 = 1 << 4; 
+const unsigned char LOAD_LUT_WITH_DISPLAY_MODE2 = 1 << 3; 
+const unsigned char DISPLAY = 1 << 2; 
+const unsigned char DISABLE_ANALOG = 1 << 1; 
+const unsigned char DISABLE_CLOCK = 1 << 0; 
+
+
+
 
 #define BWR_213_Len 50
 uint8_t LUT_bwr_213_part[] = {
@@ -51,22 +65,19 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_detect(void)
     return 1;
 }
 
-_attribute_ram_code_ uint8_t EPD_BWR_213_read_temp(void)
+_attribute_ram_code_ uint8_t _EPD_read_temp(bool bLoadLUT)
 {
     uint8_t epd_temperature = 0 ;
-    
-    EPD_CheckStatus(100);
-    // SW Reset
-    EPD_WriteCmd(0x12);
-    EPD_CheckStatus(100);
-
     // Temperature sensor control
     EPD_WriteCmd(0x18);
     EPD_WriteData(0x80);
 
     // Display update control
     EPD_WriteCmd(0x22);
-    EPD_WriteData(0xA1); // 启用CLK，并只加载温度
+    uint8_t flag = 0xA1; // 启用CLK，并只加载温度
+    if (bLoadLUT)
+        flag |= LOAD_LUT_WITH_DISPLAY_MODE1; // 加载LUT
+    EPD_WriteData(flag); 
     
     // Master Activation
     EPD_WriteCmd(0x20);
@@ -78,27 +89,29 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_read_temp(void)
     EPD_SPI_read();
     WaitMs(5);
 
-    // deep sleep
-    EPD_WriteCmd(0x10);
-    EPD_WriteData(0x01);
-
     return epd_temperature;
 }
 
-// 0x22 命令
-const unsigned char ENABLE_CLOCK  = 1 << 7; 
-const unsigned char ENABLE_ANALOG = 1 << 6; 
-const unsigned char LOAD_TEMPERATURE = 1 << 5; 
-const unsigned char LOAD_LUT_WITH_DISPLAY_MODE1 = 1 << 4; 
-const unsigned char LOAD_LUT_WITH_DISPLAY_MODE2 = 1 << 3; 
-const unsigned char DISPLAY = 1 << 2; 
-const unsigned char DISABLE_ANALOG = 1 << 1; 
-const unsigned char DISABLE_CLOCK = 1 << 0; 
+_attribute_ram_code_ uint8_t EPD_BWR_213_read_temp(void)
+{
+    uint8_t epd_temperature = 0 ;
+    
+    EPD_CheckStatus(100);
+    // SW Reset
+    EPD_WriteCmd(0x12);
+    EPD_CheckStatus(100);
+
+    epd_temperature = _EPD_read_temp(false);
+
+    EPD_BWR_213_set_sleep();
+    return epd_temperature;
+}
+
 
 #define SOURCE_COUNT 176
 #define GATE_COUNT 296
 
-_attribute_ram_code_ void EPD_SetWindows(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end)
+_attribute_ram_code_ void _EPD_SetWindows(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end)
 {
     // Set RAM X- Address Start/End
     EPD_WriteCmd(0x44);
@@ -113,7 +126,7 @@ _attribute_ram_code_ void EPD_SetWindows(uint16_t x_start, uint16_t x_end, uint1
     EPD_WriteData((y_end >> 8) & 0xFF);
 };
 
-_attribute_ram_code_ void EPD_SetCursor(uint16_t x, uint16_t y)
+_attribute_ram_code_ void _EPD_SetCursor(uint16_t x, uint16_t y)
 {
     // Set RAM X address
     EPD_WriteCmd(0x4E);
@@ -125,43 +138,19 @@ _attribute_ram_code_ void EPD_SetCursor(uint16_t x, uint16_t y)
     EPD_WriteData((y >> 8) & 0xFF);
 }
 
-_attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size, uint8_t full_or_partial)
-{    
-    uint8_t epd_temperature = 0 ;
-    
+_attribute_ram_code_ void _EPD_Display_Init()
+{
     EPD_CheckStatus(1000);
     // SW Reset
     EPD_WriteCmd(0x12);
     EPD_CheckStatus(1000);
 
-    // 先获取温度
-    {
-        // Temperature sensor control
-        EPD_WriteCmd(0x18);
-        EPD_WriteData(0x80);
-
-        // Display update control
-        EPD_WriteCmd(0x22);
-        EPD_WriteData(0xB1); // 加载温度值，加载LUT with Display Mode 1
-        
-        // Master Activation
-        EPD_WriteCmd(0x20);
-        EPD_CheckStatus(5000);
-
-        // Temperature sensor read from register
-        EPD_WriteCmd(0x1B);
-        epd_temperature = EPD_SPI_read();
-        EPD_WriteCmd(0x7F);
-        WaitMs(5);
-    }
-
-    EPD_CheckStatus(1000);
     // Driver output control
     EPD_WriteCmd(0x01);
     EPD_WriteData(0x27);  // 这个要填最大支持的295+1个MUX, 不能填250
     EPD_WriteData(0x01);
 #define EPD_01_SM
-#define EPD_01_TB 
+#define EPD_01_TB
     EPD_WriteData(0x01); // 这个为0就会导致横屏的水平反转了
 
     // Data entry mode setting
@@ -176,11 +165,23 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_WriteCmd(0x21);
     EPD_WriteData(0x00);
     EPD_WriteData(0x80);
-    
-    // 设置显示区域
-    EPD_SetWindows(0, 0x0F, 0x127, 0);
+}
 
-    EPD_SetCursor(0, 0x127);
+_attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size, bool full_refresh)
+{    
+    uint8_t epd_temperature = 0 ;
+    
+    _EPD_Display_Init();
+
+    // 读取温度的同时加载LUT with Display Mode 1, 下面就不用再次加载LUT代码了。
+    // 如果是全刷则需要加载OTP里的默认全刷LUT. 
+    epd_temperature = _EPD_read_temp(full_refresh);
+    EPD_CheckStatus(1000);
+
+    // 设置显示区域
+    _EPD_SetWindows(0, 0x0F, 0x127, 0);
+
+    _EPD_SetCursor(0, 0x127);
 
     // 写入黑白图
     EPD_LoadImage(image, size, 0x24);
@@ -195,7 +196,7 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_WriteCmd(0x7F);
 
     // 快速刷新
-    if (!full_or_partial)
+    if (!full_refresh)
     {
         EPD_WriteCmd(0x32);
         for (int i = 0; i < sizeof(LUT_bwr_213_part); i++)
@@ -226,5 +227,5 @@ _attribute_ram_code_ void EPD_BWR_213_set_sleep(void)
     // deep sleep
     EPD_WriteCmd(0x10);
     EPD_WriteData(0x01);
-    WaitMs(100);
+    WaitMs(10);
 }
