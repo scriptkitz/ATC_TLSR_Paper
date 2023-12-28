@@ -15,7 +15,7 @@ void EPD_SPI_Write(unsigned char value);
 uint8_t EPD_SPI_read(void);
 void EPD_WriteCmd(unsigned char cmd);
 void EPD_WriteData(unsigned char data);
-void EPD_CheckStatus(int max_ms);
+bool EPD_CheckStatus(int max_ms);
 void EPD_CheckStatus_inverted(int max_ms);
 void EPD_send_lut(uint8_t lut[], int len);
 void EPD_send_empty_lut(uint8_t lut, int len);

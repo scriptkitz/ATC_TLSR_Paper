@@ -129,10 +129,10 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
 {    
     uint8_t epd_temperature = 0 ;
     
-    EPD_CheckStatus(20000);
+    EPD_CheckStatus(1000);
     // SW Reset
     EPD_WriteCmd(0x12);
-    EPD_CheckStatus(20000);
+    EPD_CheckStatus(1000);
 
     // 先获取温度
     {
@@ -146,19 +146,16 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
         
         // Master Activation
         EPD_WriteCmd(0x20);
-        EPD_CheckStatus(20000);
+        EPD_CheckStatus(5000);
 
         // Temperature sensor read from register
         EPD_WriteCmd(0x1B);
         epd_temperature = EPD_SPI_read();
         EPD_WriteCmd(0x7F);
-        // int epd_temperature2 = EPD_SPI_read(); // 高4位，看SSD1680的6.8.3
-        // printf("Temperature: %d\n", epd_temperature2);
         WaitMs(5);
     }
 
-    EPD_CheckStatus(20000);
-
+    EPD_CheckStatus(1000);
     // Driver output control
     EPD_WriteCmd(0x01);
     EPD_WriteData(0x27);  // 这个要填最大支持的295+1个MUX, 不能填250
@@ -212,13 +209,14 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_WriteCmd(0x22);
     EPD_WriteData(0xC7);
     
-    printf("%d-%d\n", 1000, gpio_read(EPD_BUSY));
     // Master Activation
     EPD_WriteCmd(0x20);
-    printf("%d-%d\n", 101, gpio_read(EPD_BUSY));
-    EPD_CheckStatus(40000);
-    printf("%d-%d\n", 102, gpio_read(EPD_BUSY));
-
+    // Check BUSY 
+    if(!EPD_CheckStatus(5000))
+    {
+        // BUSY Timeout!
+        return 0xFF;
+    }
 
     return epd_temperature;
 }

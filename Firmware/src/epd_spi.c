@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "common/types.h"
 #include "tl_common.h"
 #include "main.h"
 #include "epd.h"
@@ -102,7 +103,7 @@ _attribute_ram_code_ void EPD_WriteData(unsigned char data)
     gpio_write(EPD_CS, 1);
 }
 
-_attribute_ram_code_ void EPD_CheckStatus(int max_ms)
+_attribute_ram_code_ bool EPD_CheckStatus(int max_ms)
 {
     unsigned long timeout_start = clock_time();
     unsigned long timeout_ticks = max_ms * CLOCK_16M_SYS_TIMER_CLK_1MS;
@@ -110,8 +111,12 @@ _attribute_ram_code_ void EPD_CheckStatus(int max_ms)
     while (EPD_IS_BUSY())
     {
         if (clock_time() - timeout_start >= timeout_ticks)
-            return; // Here we had a timeout
+		{
+            return false; // Here we had a timeout
+		}
+		WaitMs(10);
     }
+    return true;
 }
 
 _attribute_ram_code_ void EPD_CheckStatus_inverted(int max_ms)

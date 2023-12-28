@@ -101,6 +101,9 @@ _attribute_ram_code_ void EPD_Display(unsigned char *image, unsigned char *red_i
     if (!epd_model)
         EPD_detect_model();
 
+    // 如果上一次渲染异常了就不要再试了，
+    // 等着蓝牙更新吧，免得再次BUSY导致蓝牙断开！
+    if (epd_temperature == 0xFF) return;
     EPD_init();
     // system power
     EPD_POWER_ON();
