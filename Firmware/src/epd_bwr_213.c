@@ -227,7 +227,7 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     // Master Activation
     EPD_WriteCmd(0x20);
     // Check BUSY 
-    if(!EPD_CheckStatus(5000))
+    if(!EPD_CheckStatus(50000))
     {
         // BUSY Timeout!
         return 0xFF;
