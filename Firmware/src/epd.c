@@ -290,6 +290,16 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
     struct date_time dt;
     get_from_ts(_time, &dt);
 
+    if (epd_temperature == 0xFF)
+    {
+        if(dt.tm_sec != last_sec)
+        {
+            last_sec = dt.tm_sec;
+            set_led_color(2);
+            return;
+        }
+    }
+
     if (epd_wait_update) {
         scene(&dt, battery_mv, temperature, 1);
         epd_wait_update = 0;
@@ -313,7 +323,7 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
     if(dt.tm_sec != last_sec)
     {
         last_sec = dt.tm_sec;
-        // set_led_color(1);
+        scene(&dt, battery_mv, temperature, 0);
     }
 }
 
@@ -367,7 +377,7 @@ _attribute_ram_code_ void epd_display_time_with_date(const struct date_time *dt,
     // 横线
     obdRectangle(&obd, 0, 25, 248, 27, 1, 1);
     // 时间
-    sprintf(buff, "%02d:%02d", dt->tm_hour, dt->tm_min);
+    sprintf(buff, "%02d:%02d", dt->tm_min, dt->tm_sec);
     obdWriteStringCustom(&obd, (GFXfont *)&DSEG14_Classic_Mini_Regular_40, 15, 80, (char *)buff, 1);
 
     // 温度
