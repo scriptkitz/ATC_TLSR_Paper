@@ -25,12 +25,26 @@ const unsigned char DISABLE_CLOCK = 1 << 0;
 
 #define BWR_213_Len 50
 uint8_t LUT_bwr_213_part[] = {
+    /*
+    LUT 0: 第1行，10组数据, Group0 - Group9
+    0x40 = b'01_00_00_00'; VS[0A-L0] _ VS[0B-L0] _ VS[0C-L0] _ VS[0D-L0]; Group0
+    0x00 = b'00_00_00_00'; VS[1A-L0] _ VS[1B-L0] _ VS[1C-L0] _ VS[1D-L0]; Group1
+
+    LUT 1: 第2行
+    0x80 = b'10_00_00_00'; VS[0A-L1] _ VS[0B-L1] _ VS[0C-L1] _ VS[0D-L1]; Group0
+    ...
+    LUT 4: 第5行
+    ...
+    TP[0] ...
+    */
+    // 
     0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
+    // TP[0A], TP[0B], TP[0C], TP[0D], RP[0]
     BWR_213_Len, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00,
@@ -107,22 +121,18 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_read_temp(void)
     return epd_temperature;
 }
 
-
-#define SOURCE_COUNT 176
-#define GATE_COUNT 296
-
 _attribute_ram_code_ void _EPD_SetWindows(uint16_t x_start, uint16_t x_end, uint16_t y_start, uint16_t y_end)
 {
     // Set RAM X- Address Start/End
     EPD_WriteCmd(0x44);
-    EPD_WriteData(x_start);
-    EPD_WriteData(x_end);
+    EPD_WriteData((x_start >> 3) & 0xFF);
+    EPD_WriteData((x_end   >> 3) & 0xFF);
 
     // Set RAM Y- Address Start/End
     EPD_WriteCmd(0x45);
-    EPD_WriteData(y_start & 0xFF); // 这个要填最大支持的295+1个MUX, 不能填250
+    EPD_WriteData( y_start       & 0xFF); // 这个要填最大支持的295+1个MUX, 不能填250
     EPD_WriteData((y_start >> 8) & 0xFF);
-    EPD_WriteData(y_end & 0xFF);
+    EPD_WriteData( y_end &       0xFF);
     EPD_WriteData((y_end >> 8) & 0xFF);
 };
 
@@ -138,6 +148,10 @@ _attribute_ram_code_ void _EPD_SetCursor(uint16_t x, uint16_t y)
     EPD_WriteData((y >> 8) & 0xFF);
 }
 
+// 这个值再研究吧，看看跟屏幕分辨率有什么关系吗122*250
+#define EPD_WIDTH 128
+#define EPD_HEIGHT 296
+
 _attribute_ram_code_ void _EPD_Display_Init()
 {
     EPD_CheckStatus(1000);
@@ -147,8 +161,8 @@ _attribute_ram_code_ void _EPD_Display_Init()
 
     // Driver output control
     EPD_WriteCmd(0x01);
-    EPD_WriteData(0x27);  // 这个要填最大支持的295+1个MUX, 不能填250
-    EPD_WriteData(0x01);
+    EPD_WriteData((EPD_HEIGHT-1) & 0xFF);  // 这个要填最大支持的295+1个MUX, 不能填250
+    EPD_WriteData(((EPD_HEIGHT-1) >> 8) & 0xFF);
 #define EPD_01_SM
 #define EPD_01_TB
     EPD_WriteData(0x01); // 这个为0就会导致横屏的水平反转了
@@ -179,9 +193,9 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_CheckStatus(1000);
 
     // 设置显示区域
-    _EPD_SetWindows(0, 0x0F, 0x127, 0);
+    _EPD_SetWindows(0, EPD_WIDTH-1, EPD_HEIGHT-1, 0);
 
-    _EPD_SetCursor(0, 0x127);
+    _EPD_SetCursor(0, EPD_HEIGHT-1);
 
     // 写入黑白图
     EPD_LoadImage(image, size, 0x24);
