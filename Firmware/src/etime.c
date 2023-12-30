@@ -57,25 +57,19 @@ _attribute_ram_code_ uint32_t get_time(void)
 #define SECONDS_PER_HOUR 3600
 #define SECONDS_PER_MINUTE 60
 
+_attribute_ram_code_ bool is_leap_year(int year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || ((year % 400) == 0);
+}
+
 _attribute_ram_code_ uint32_t get_from_dt(const struct date_time *dt)
 {
     uint32_t days_since_epoch = 0;
     for (int y = 1970; y < dt->tm_year; y++)
     {
-        if((y%4==0 && y %100 != 0) || y%400==0)
-        {
-            days_since_epoch += 366;
-        }
-        else
-        {
-            days_since_epoch += 365;
-        }
+        days_since_epoch += (is_leap_year(y) ? 366 : 365);
     }
-    int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    if((dt->tm_year%4 == 0 && dt->tm_year%100 != 100) || dt->tm_year % 400 == 0)
-    {
-        days_in_month[1] = 29;
-    }
+    int days_in_month[] = {31, is_leap_year(dt->tm_year)?29:28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     for (int m = 1; m < dt->tm_month; m++)
     {
         days_since_epoch += days_in_month[m-1];
@@ -88,7 +82,7 @@ _attribute_ram_code_ uint32_t get_from_dt(const struct date_time *dt)
 _attribute_ram_code_ struct date_time* get_from_ts(uint32_t timestamp, struct date_time* dt)
 {
     uint32_t days_since_epoch = 0, reminder = 0;
-    int year, month, is_leap_year, days_in_month;
+    int year, month;
 
     days_since_epoch = timestamp / SECONDS_PER_DAY;
     reminder = timestamp % SECONDS_PER_DAY;
@@ -100,31 +94,17 @@ _attribute_ram_code_ struct date_time* get_from_ts(uint32_t timestamp, struct da
     year = 1970;
     while (days_since_epoch >= 365)
     {
-        is_leap_year = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-        days_since_epoch -= is_leap_year ? 366 : 365;
+        days_since_epoch -= (is_leap_year(year) ? 366 : 365);
         year++;
     }
     dt->tm_year = year;
 
-    days_in_month = 30;
-
     month = 1;
-    while (days_since_epoch >= days_in_month)
+    int month_lengths[12] = {31, is_leap_year(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    while (days_since_epoch >= month_lengths[month - 1])
     {
-        days_since_epoch -= days_in_month;
+        days_since_epoch -= month_lengths[month - 1];
         month++;
-        if(month == 2) {
-            is_leap_year = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            days_in_month = is_leap_year ? 29 : 28;
-        }
-        else if(month ==4 || month ==6 || month ==9 || month ==11 )
-        {
-            days_in_month = 30;
-        }
-        else 
-        {
-            days_in_month = 31;
-        }
     }
     dt->tm_month = month;
     dt->tm_day = days_since_epoch + 1;
