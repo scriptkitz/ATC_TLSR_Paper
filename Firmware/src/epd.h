@@ -3,7 +3,7 @@
 
 #define EPD_MAX_HEIGHT 128
 #define EPD_MAX_WIDTH 250
-// 上面的宽高如果过大，会导致编译报错.text过大了，可以研究一下.retention_data段大小问题
+
 #define epd_buffer_size ((EPD_MAX_HEIGHT/8) * EPD_MAX_WIDTH)
 
 void set_EPD_model(uint8_t model_nr);

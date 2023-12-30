@@ -163,13 +163,17 @@ _attribute_ram_code_ void _EPD_Display_Init()
     EPD_WriteCmd(0x01);
     EPD_WriteData((EPD_HEIGHT-1) & 0xFF);  // 这个要填最大支持的295+1个MUX, 不能填250
     EPD_WriteData(((EPD_HEIGHT-1) >> 8) & 0xFF);
-#define EPD_01_SM
-#define EPD_01_TB
-    EPD_WriteData(0x01); // 这个为0就会导致横屏的水平反转了
+#define EPD_01_bit2_GD  1<<2 // GATE输出队列: 0:G0,G1,G2...; 1:G1,G0,G3,G2...;
+#define EPD_01_bit1_SM  1<<1 // GATE扫描顺序: 0:G0,G1,G2...; 1:G0,G2,G4...G294,G1,G3,G5...G295;
+#define EPD_01_bit0_TB  1<<0 // GATE扫描方向: 0:G0 to G295; 1:G295 to G0;  TB(Top/Bottom)
+    EPD_WriteData(EPD_01_bit0_TB); // 这个为0就会导致横屏的水平反转了
 
     // Data entry mode setting
-    EPD_WriteCmd(0x11);
-    EPD_WriteData(0x01);
+    EPD_WriteCmd(0x11); // 控制写入RAM数据时候地址指针的处理方法。
+#define EPD_11_bit2_AM  1<<2  // 数据写入到RAM时候的地址自动增加的方向。 0: x方向增加; 1: y方向增加;
+#define EPD_11_bit1_ID1 1<<1  // 数据写入到RAM时候地址会自动加/减1。 0: y方向-1.   1: y方向+1
+#define EPD_11_bit0_ID0 1<<0  // 数据写入到RAM时候地址会自动加/减1。 0: x方向-1.   1: x方向+1
+    EPD_WriteData(EPD_11_bit0_ID0);
 
     // Border waveform control
     EPD_WriteCmd(0x3C);
@@ -177,8 +181,8 @@ _attribute_ram_code_ void _EPD_Display_Init()
 
     // Display update control
     EPD_WriteCmd(0x21);
-    EPD_WriteData(0x00);
-    EPD_WriteData(0x80);
+    EPD_WriteData(0x00); // bit0-bit3 -> B/W RAM option; bit4-bit7 -> R RAM option
+    EPD_WriteData(0x80); // bit7 -> [0: Source from 0 to 175; 1: Source from 8 to 167] 
 }
 
 _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size, bool full_refresh)
@@ -196,7 +200,7 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     _EPD_SetWindows(0, EPD_WIDTH-1, EPD_HEIGHT-1, 0);
 
     _EPD_SetCursor(0, EPD_HEIGHT-1);
-
+    
     // 写入黑白图
     EPD_LoadImage(image, size, 0x24);
     EPD_WriteCmd(0x7F);
