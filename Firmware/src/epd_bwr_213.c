@@ -140,7 +140,7 @@ _attribute_ram_code_ void _EPD_SetCursor(uint16_t x, uint16_t y)
 {
     // Set RAM X address
     EPD_WriteCmd(0x4E);
-    EPD_WriteData(x);
+    EPD_WriteData((x >> 3) & 0xFF);
 
     // Set RAM Y address
     EPD_WriteCmd(0x4F);
@@ -205,6 +205,7 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     EPD_LoadImage(image, size, 0x24);
     EPD_WriteCmd(0x7F);
 
+    _EPD_SetCursor(0, EPD_HEIGHT-1);
     // 填充红色图
     EPD_WriteCmd(0x26);// RED Color TODO make something out of it :)
     for (int c = 0; c < size; c++)
@@ -238,6 +239,70 @@ _attribute_ram_code_ uint8_t EPD_BWR_213_Display(unsigned char *image, int size,
     }
 
     return epd_temperature;
+}
+
+// 局部刷新，不读取温度这个
+_attribute_ram_code_ uint8_t EPD_BWR_213_Display_Part(unsigned char *image, int size, bool full_refresh)
+{
+    _EPD_Display_Init();
+    EPD_CheckStatus(1000);
+
+    int ys = 80;
+    int ye = 88;
+
+    int ss = EPD_HEIGHT-1-82;
+    int se = ss - 32;
+
+    // 设置显示区域
+    _EPD_SetWindows(ys, ye, ss, 0);
+
+    _EPD_SetCursor(ys, ss);
+    
+    // 写入黑白图
+    EPD_LoadImage(image, size, 0x24);
+    EPD_WriteCmd(0x7F);
+
+    // EPD_WriteCmd(0x24);// RED Color TODO make something out of it :)
+    // for (int c = 0; c < size; c++)
+    // {
+    //     EPD_WriteData(0x00);
+    // }
+    // EPD_WriteCmd(0x7F);
+
+    // 填充红色图
+    _EPD_SetCursor(ys, ss);
+    EPD_WriteCmd(0x26);// RED Color TODO make something out of it :)
+    for (int c = 0; c < size; c++)
+    {
+        EPD_WriteData(0x00);
+    }
+    EPD_WriteCmd(0x7F);
+
+    // 快速刷新
+    if (!full_refresh)
+    {
+        EPD_WriteCmd(0x32);
+        for (int i = 0; i < sizeof(LUT_bwr_213_part); i++)
+        {
+            EPD_WriteData(LUT_bwr_213_part[i]);
+        }
+        EPD_WriteCmd(0x7F);
+    }
+
+    // Display update control
+    EPD_WriteCmd(0x22);
+    EPD_WriteData(0xC7);
+    
+    // Master Activation
+    EPD_WriteCmd(0x20);
+    // Check BUSY 
+    if(!EPD_CheckStatus(50000))
+    {
+        // BUSY Timeout!
+        return 0xFF;
+    }
+
+    return 0;
 }
 
 _attribute_ram_code_ void EPD_BWR_213_set_sleep(void)

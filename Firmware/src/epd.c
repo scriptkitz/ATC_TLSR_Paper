@@ -122,6 +122,24 @@ _attribute_ram_code_ void EPD_Display(unsigned char *image, unsigned char *red_i
     epd_update_state = 1;
 }
 
+_attribute_ram_code_ void EPD_Display_Part(unsigned char *image, unsigned char *red_image, int size, uint8_t full_or_partial)
+{
+    if (!epd_model)
+        EPD_detect_model();
+
+    EPD_init();
+    // system power
+    EPD_POWER_ON();
+    WaitMs(5);
+    // Reset the EPD driver IC
+    gpio_write(EPD_RESET, 0);
+    WaitMs(10);
+    gpio_write(EPD_RESET, 1);
+    WaitMs(10);
+
+    EPD_BWR_213_Display_Part(image, size, full_or_partial);
+}
+
 _attribute_ram_code_ void epd_set_sleep(void)
 {
     if (!epd_model)
@@ -237,8 +255,8 @@ _attribute_ram_code_ void epd_display(const struct date_time *dt, uint16_t batte
         return;
 
     epd_clear();
-    uint16_t resolution_w = 0;
-    uint16_t resolution_h = 0;
+    uint16_t resolution_w = 0; // 250
+    uint16_t resolution_h = 0; // 128
     epd_get_display_size(&resolution_w, &resolution_h);
     obdCreateVirtualDisplay(&obd, resolution_w, resolution_h, epd_temp);
     obdFill(&obd, 0, 0); // fill with white
@@ -260,6 +278,28 @@ _attribute_ram_code_ void epd_display(const struct date_time *dt, uint16_t batte
 
     FixBuffer(epd_temp, epd_buffer, resolution_w, resolution_h);
     EPD_Display(epd_buffer, NULL, resolution_w * resolution_h / 8, full_or_partial);
+}
+
+// 局部刷新秒
+_attribute_ram_code_ void epd_display_secend(const struct date_time *dt)
+{
+#define _D_S_W 32
+#define _D_S_H 16
+    if (epd_update_state)
+        return;
+
+    epd_clear();
+    obdCreateVirtualDisplay(&obd, _D_S_W, _D_S_H, epd_temp);
+    obdFill(&obd, 0, 0); // fill with white
+
+    char buff[100];
+    sprintf(buff, ":%02d", dt->tm_sec);
+    obdWriteStringCustom(&obd, (GFXfont *)&Orbitron_Medium_9, 1, 8, (char *)buff, 1);
+
+    // obdRectangle(&obd, 1, 1, 31, 15, 1, 1); // 电池体
+
+    FixBuffer(epd_temp, epd_buffer, _D_S_W, _D_S_H);
+    EPD_Display_Part(epd_buffer, NULL, _D_S_W * _D_S_H / 8, 0);
 }
 
 _attribute_ram_code_ void epd_display_char(uint8_t data)
@@ -323,7 +363,7 @@ _attribute_ram_code_ void update_time_scene(uint32_t _time, uint16_t battery_mv,
     if(dt.tm_sec != last_sec)
     {
         last_sec = dt.tm_sec;
-        scene(&dt, battery_mv, temperature, 0);
+        // epd_display_secend(&dt);
     }
 }
 
@@ -377,7 +417,7 @@ _attribute_ram_code_ void epd_display_time_with_date(const struct date_time *dt,
     // 横线
     obdRectangle(&obd, 0, 25, 248, 27, 1, 1);
     // 时间
-    sprintf(buff, "%02d:%02d", dt->tm_min, dt->tm_sec);
+    sprintf(buff, "%02d:%02d", dt->tm_hour, dt->tm_min);
     obdWriteStringCustom(&obd, (GFXfont *)&DSEG14_Classic_Mini_Regular_40, 15, 80, (char *)buff, 1);
 
     // 温度
