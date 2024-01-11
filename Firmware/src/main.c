@@ -39,14 +39,13 @@ _attribute_ram_code_ int main (void)    //must run in ramcode
 	
     init_led();
 	init_uart();
-	init_i2c();
 		
 	if( deepRetWakeUp ){
 		user_init_deepRetn ();
-		printf("Booting deep");
+		printf("Booting deep\n");
 	}
 	else{
-		printf("Booting");
+		printf("Booting\n");
 		user_init_normal ();
 	}
     irq_enable();

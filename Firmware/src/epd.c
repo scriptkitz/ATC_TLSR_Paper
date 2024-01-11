@@ -88,7 +88,7 @@ _attribute_ram_code_ uint8_t EPD_read_temp(void)
 
     epd_temperature = EPD_BWR_213_read_temp();
 
-    printf("Temperature1:%d", epd_temperature);
+    printf("Temperature1:%d\n", epd_temperature);
     EPD_POWER_OFF();
 
     epd_temperature_is_read = 1;
@@ -116,7 +116,7 @@ _attribute_ram_code_ void EPD_Display(unsigned char *image, unsigned char *red_i
 
 
     epd_temperature = EPD_BWR_213_Display(image, size, full_or_partial);
-    printf("Temperature2:%d", epd_temperature);
+    printf("Temperature2:%d\n", epd_temperature);
 
     epd_temperature_is_read = 1;
     epd_update_state = 1;

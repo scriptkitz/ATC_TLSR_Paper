@@ -44,6 +44,7 @@ _attribute_ram_code_ void main_loop(void)
 {
     blt_sdk_main_loop();
     handler_time();
+    nfc_loop();
 
     // 每30秒，修改蓝牙的adv广播数据，包含电池电压，电量，温度
     // 并发送电量和温度的属性通知

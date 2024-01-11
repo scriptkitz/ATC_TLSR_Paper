@@ -88,7 +88,6 @@ void i2c_master_init(unsigned char SlaveID, unsigned char DivClock)
     reg_i2c_speed = DivClock; //i2c clock = system_clock/(4*DivClock)
     reg_i2c_id	  = SlaveID; //slave address
     reg_i2c_mode |= FLD_I2C_MASTER_EN; //enable master mode
-    reg_i2c_mode |= FLD_I2C_HOLD_MASTER; //clk stretching
 
     reg_clk_en0 |= FLD_CLK0_I2C_EN;    //enable i2c clock
     reg_spi_sp  &= ~FLD_SPI_ENABLE;   //force PADs act as I2C; i2c and spi share the hardware of IC
