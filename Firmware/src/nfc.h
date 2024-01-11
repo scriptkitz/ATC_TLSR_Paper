@@ -51,6 +51,7 @@
 #define MAIN_IRQ_ARBIT          0x04
 #define MAIN_IRQ_FIFO           0x02
 #define MAIN_IRQ_AUX            0x01
+
 #define FIFO_IRQ_WL             0x08
 
 

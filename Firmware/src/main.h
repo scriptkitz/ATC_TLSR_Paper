@@ -7,7 +7,6 @@
 #include "cmd_parser.h"
 #include "epd.h"
 #include "flash.h"
-#include "i2c.h"
 #include "led.h"
 #include "nfc.h"
 #include "ota.h"

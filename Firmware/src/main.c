@@ -12,7 +12,6 @@
 #include "cmd_parser.h"
 #include "epd.h"
 #include "flash.h"
-#include "i2c.h"
 #include "led.h"
 #include "nfc.h"
 #include "ota.h"
@@ -42,7 +41,7 @@ _attribute_ram_code_ int main (void)    //must run in ramcode
 		
 	if( deepRetWakeUp ){
 		user_init_deepRetn ();
-		printf("Booting deep\n");
+		// printf("Booting deep\n");
 	}
 	else{
 		printf("Booting\n");

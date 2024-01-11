@@ -12,21 +12,25 @@ uint8_t rfLen;
 
 
 
-
-// uint32_t write_and_read(uint16_t addr, uint8_t *buff, uint8_t send_len, uint8_t read_len)
-// {
-    
-// }
-
-void nfc_read_eep(uint8_t *buff, uint16_t addr, uint16_t len)
+void dump_hex(const uint8_t* buff, int len)
 {
-    i2c_read_series(addr, 2, buff, len);
+    for (int i = 0; i < len; i++)
+    {
+        printf("%02X ", buff[i]);
+    }
+    printf("\n");
 }
 
+/*写FIFO*/
+void nfc_write_fifo(uint8_t* buff, uint8_t size)
+{
+    // todo: size > 32
+    i2c_write_series(FM327_FIFO, 2, buff, size);
+}
 /*读取FIFO*/
 void nfc_read_fifo(uint8_t num, uint8_t* buff)
 {
-    nfc_read_eep(buff, FM327_FIFO, num);
+    i2c_read_series(FM327_FIFO, 2, buff, num);
 }
 
 uint8_t nfc_read_reg(uint16_t addr)
@@ -48,14 +52,16 @@ uint32_t nfc_data_recv(uint8_t * rbuf)
     uint8_t rlen = 0;
     uint8_t temp = 0;
     
-    // while (1)
+    while (1)
     {
         irq_data_wl = 0;
+        printf("irq0: %d\n", irq);
         irq = nfc_read_reg(MAIN_IRQ); //查询中断标志
-        printf("irq: %d\n", irq);
+        if (!irq) break;
+        printf("irq1: %d\n", irq);
         if (irq & MAIN_IRQ_FIFO) {
             ret = nfc_read_reg(FIFO_IRQ);
-            printf("FIFO_IRQ: %d\n", ret);
+            if(ret) printf("FIFO_IRQ: %d\n", ret);
             if(ret & FIFO_IRQ_WL) irq_data_wl = 1;
         }
         if(irq & MAIN_IRQ_AUX)
@@ -73,15 +79,17 @@ uint32_t nfc_data_recv(uint8_t * rbuf)
             nfc_read_fifo(24, &rbuf[rlen]);
             rlen += 24;
         }
-        if(irq && MAIN_IRQ_RX_DONE)
+        if(irq & MAIN_IRQ_RX_DONE)
         {
             temp = (uint8_t)(nfc_read_reg(FIFO_WORDCNT)&0x3F);  // 接收完成后，计算fifo有多少字节
             nfc_read_fifo(temp, &rbuf[rlen]); // 读取最后的数据
             rlen += temp;
             irq_data_in = 0;
-            // break;
+            break;
         }
+        printf("irq2: %d\n", irq);
         WaitMs(1);
+        printf("irq3: %d\n", irq);
     }
 	if (rlen <= 2) {
         return 0;
@@ -94,10 +102,12 @@ void nfc_t4t()
 {
 
     uint8_t crc_err = 0;
+    uint8_t status_x[3] = { 0x02, 0x9D, 0x00 };
     uint8_t status_ok[3] = { 0x02, 0x90, 0x00 };
     uint8_t status_word[3] = { 0x02, 0x6A, 0x82 };
     uint8_t status_word2[3] = { 0x02, 0x6A, 0x00 };
 
+    nfc_write_fifo(fm327_fifo, rfLen);
     if (crc_err)
     {
         printf("nfc_t4t!!!\n");
@@ -139,7 +149,8 @@ _attribute_ram_code_ void init_nfc(void)
     // printf("EE_REGU_CFG:%d\n", nfc_read_reg(0x391));
     // printf("EE_I2C_ADDR:%d\n", nfc_read_reg(0x3B3));
 
-    // 44 00 04 20
+    //  ATQA  SAK1  SAK2
+    // 44 00   04    20
     // uint8_t ee_l3_cfg[4] = {0};
     // i2c_read_series(232*4, 2, ee_l3_cfg, 4);
     // printf("EE_L3_CFG:\n");
@@ -147,6 +158,7 @@ _attribute_ram_code_ void init_nfc(void)
     // printf("    SAK1:%02X\n", ee_l3_cfg[2]);
     // printf("    SAK2:%02X\n", ee_l3_cfg[3]);
     
+    // TL T0       TA TB TC 
     // 05 72 01 57 F7 A0 02 00
     // uint8_t ee_nfc_cfg[8] = {0};
     // i2c_read_series(236*4, 2, ee_nfc_cfg, 8);
@@ -158,13 +170,13 @@ _attribute_ram_code_ void init_nfc(void)
     // printf("    ATS TB:%02X\n", ee_nfc_cfg[5]);
     // printf("    ATS TC:%02X\n", ee_nfc_cfg[6]);
     
-    
-    //              no limit      2mA resistor   3.3V
-    uint8_t vout = (0b11 << 4) | (0b10 << 2) | (0b11 << 0);
-    nfc_write_reg(VOUT_CFG_REG, vout);
-    //                 ISO14443-3   NO_IRQ_PWON|NO_IRQ_L4
-    uint8_t nfc_cfg = (0b11 << 2) | 0b11;
-    nfc_write_reg(NFC_CFG_REG, vout);
+    // 部分需要写EEPROM才生效，部分直接改寄存器就生效？
+    // //              no limit      2mA resistor   3.3V
+    // uint8_t vout = (0b11 << 4) | (0b10 << 2) | (0b11 << 0);
+    // nfc_write_reg(VOUT_CFG_REG, vout);
+    // //                 ISO14443-3   NO_IRQ_PWON|NO_IRQ_L4
+    // uint8_t nfc_cfg = (0b11 << 2) | 0b11;
+    // nfc_write_reg(NFC_CFG_REG, vout);
 
 }
 
@@ -172,10 +184,13 @@ void nfc_loop()
 {
     init_nfc();
     rfLen = nfc_data_recv(fm327_fifo);
-    printf("nfc_loop:%d\n", rfLen);
+    printf("rfLen: %d\n", rfLen);
+    // 14字节
+    // 02 00 A4 04 00 07 D2 76 00 00 85 01 01 00
+    if(rfLen) printf("nfc_loop2:%d\n", rfLen);
     if(rfLen > 0)
     {
-        printf("fm327_fifo[0]:%d\n", fm327_fifo[0]);
+        dump_hex(fm327_fifo, rfLen);
         nfc_t4t();
     }
 }
