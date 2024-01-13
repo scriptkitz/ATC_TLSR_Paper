@@ -243,8 +243,24 @@ _attribute_ram_code_ void init_nfc(void)
     // printf("    SAK1:%02X\n", ee_l3_cfg[2]);
     // printf("    SAK2:%02X\n", ee_l3_cfg[3]);
     
-    // TL T0       TA TB TC 
+    // ATS
+    // TL T0 -  -  TA TB TC -
     // 05 72 01 57 F7 A0 02 00
+    // TL 05 表示ATS有效字节5个字节长度
+    // T0 72 (0b0111 0010) b8应该是0，如果为1表示这个字节是RFU. b7-b5:表示是否TC/TB/TA是否存在。
+    //                  b4-b1是FSCI用于编码FSC。FSC定义了PICC能接收帧的最大程度。默认值2。
+    //                  FSCI的值和FSC的字节对应关系：0:16, 1:24, 2:32, 3:40, 4:48, 5:64, 6:96, 7:128, 8:256, 9-F:RFU>256
+    //                  这里的值是2，就表示最大支持32字节。
+    // TA F7 (0b1111 0111) b8:仅支持2个方向相同的D（除数）。D值影响位持续时间。
+    //                     b7-b5: PICC到PCD方向的位速率（DS）。
+    //                     b4: 0. 如果为1表示RFU
+    //                     b3-b1: PCD到PICC方向的位速率（DR）。
+    // TB A0 (0b1010 0000) b8-b5: FWI, 编码了FWT。FWT定义了接收PCD数据后发送PICC数据之前的等待时间。
+    //                     b4-b1: SFGI, 编码了一个乘数值用于定义SFGT。SFGT定义了发送ATS后准备接收下一帧的保护时间。
+    // TC 02 (0b0000 0010) b8-b3: 0,否则为RFU
+    //                     b2-b1:定义了在PICC支持的开端字段中的可选字段。允许PCD跳过已被指出被PICC支持的字段，但PICC不支持的字段应不被PCD传输。
+    //                     b2: 是否支持CID。默认1
+    //                     b1: 是否支持NAD。默认0
     // uint8_t ee_nfc_cfg[8] = {0};
     // i2c_read_series(236*4, 2, ee_nfc_cfg, 8);
     // printf("EE_NTF_CFG:\n");
