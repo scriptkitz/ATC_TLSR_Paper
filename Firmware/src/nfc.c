@@ -35,28 +35,28 @@
 #define VOUT_CFG_REG			0xFFFE
 #define EE_WR_CTRL_REG			0xFFFF
 
+// MAIN_IRQ
+#define MAIN_IRQ_RF_PWON        0x80 // 射频上电中断
+#define MAIN_IRQ_ACTIVE         0x40 // ISO 14443-3 SELECT 完成中断
+#define MAIN_IRQ_RX_START       0x20 // ISO 14443-3 SELECT 完成后开始接收数据中断
+#define MAIN_IRQ_RX_DONE        0x10 // 当前数据帧接收完成中断
+#define MAIN_IRQ_TX_DONE        0x08 // 当前数据帧回发完成中断
+#define MAIN_IRQ_ARBIT          0x04 // 非接触口访问EEPROM时，如果接触口试图访问EEPROM则触发此中断
+#define MAIN_IRQ_FIFO           0x02 // FIFO产生中断，需去查询FIFO中断标记存储器
+#define MAIN_IRQ_AUX            0x01 // 辅助中断，如果为1去查询AUX_IRQ中断标记寄存器
 
-#define MAIN_IRQ				0xFFF7
-#define FIFO_IRQ				0xFFF8
-#define AUX_IRQ		    	    0xFFF9
-#define MAIN_IRQ_MASK		    0xFFFA
-#define FIFO_IRQ_MASK		    0xFFFB
-#define AUX_IRQ_MASK	        0xFFFC
-#define FIFO_FLUSH			    0xFFF1
-#define	FIFO_WORDCNT		    0xFFF2
+// FIFO_IRQ
+#define FIFO_IRQ_WL             0x08 // Water level中断（渐满中断）。FIFO接收数据超过一个阈值（这里是24字节）则触发中断
+#define FIFO_IRQ_OVERFLOW       0x04 // FIFO溢出中断（包含上溢出和下溢出？读溢出写溢出？）
+#define FIFO_IRQ_FULL           0x02 // FIFO满中断
+#define FIFO_IRQ_EMPTY          0x01 // FIFO空中断
 
-
-
-#define MAIN_IRQ_RF_PWON        0x80 
-#define MAIN_IRQ_ACTIVE         0x40
-#define MAIN_IRQ_RX_START       0x20
-#define MAIN_IRQ_RX_DONE        0x10
-#define MAIN_IRQ_TX_DONE        0x08
-#define MAIN_IRQ_ARBIT          0x04
-#define MAIN_IRQ_FIFO           0x02
-#define MAIN_IRQ_AUX            0x01
-
-#define FIFO_IRQ_WL             0x08
+// AUX_IRQ
+#define AUX_IRQ_EE_PROG_DONE    0x80 // EEPROM 编程完成中断
+#define AUX_IRQ_EE_PROG_ERROR   0x40 // EEPROM 编程错误中断（权限错误）
+#define AUX_IRQ_PARITY_ERROR    0x20 // 非接触端接收到的数据奇偶校验错误，仅在通过 FIFO 进行数据交互时有效
+#define AUX_IRQ_CRC_ERROR       0x10 // RF 接收到的 CRC 校验错误，仅在通过 FIFO进行数据交互时有效
+#define AUX_IRQ_FRAMING_ERROR   0x8  // RF 接收出现帧格式错误，仅在通过 FIFO 进行数据交互时有效
 
 // APDU 
 #define APDU_CLA                                 (1)
@@ -83,13 +83,17 @@ void dump_hex(const uint8_t* buff, int len)
 /*写FIFO*/
 void nfc_write_fifo(uint8_t* buff, uint8_t size)
 {
+    gpio_write(NFC_CS, 1);
     // todo: size > 32
     i2c_write_series(FM327_FIFO, 2, buff, size);
+    gpio_write(NFC_CS, 0);
 }
 /*读取FIFO*/
 void nfc_read_fifo(uint8_t num, uint8_t* buff)
 {
+    gpio_write(NFC_CS, 1);
     i2c_read_series(FM327_FIFO, 2, buff, num);
+    gpio_write(NFC_CS, 0);
 }
 
 uint8_t nfc_read_reg(uint16_t addr)
@@ -105,59 +109,199 @@ void nfc_write_reg(uint16_t addr, uint8_t val)
 uint32_t nfc_data_recv(uint8_t * rbuf)
 {
     uint8_t irq = 0;
-    uint8_t ret = 0;
+    uint8_t fifo_irq = 0;
     uint8_t irq_data_wl = 0;
     uint8_t irq_data_in = 0;
     uint8_t rlen = 0;
     uint8_t temp = 0;
     
+#define PIRQ(V,IRQ) if(V&IRQ)printf("   %s\n", #IRQ)
+
     while (1)
     {
+        fifo_irq = 0;
         irq_data_wl = 0;
-        irq = nfc_read_reg(MAIN_IRQ); //查询中断标志
+        irq = nfc_read_reg(MAIN_IRQ_REG); //查询中断标志
         if (!irq) break;
-        printf("irq1: %d\n", irq);
-        if (irq & MAIN_IRQ_FIFO) {
-            ret = nfc_read_reg(FIFO_IRQ);
-            if(ret) printf("FIFO_IRQ: %d\n", ret);
-            if(ret & FIFO_IRQ_WL) irq_data_wl = 1;
+        if (irq == 0xFF){
+            printf("irq 0xFF ERROR!\n");
+            break;
         }
-        if(irq & MAIN_IRQ_AUX)
+        printf("irq: %d\n", irq);
+        if (irq & MAIN_IRQ_RF_PWON)
         {
-            printf("AUX_IRQ: %d\n", nfc_read_reg(AUX_IRQ));
-            nfc_write_reg(FIFO_FLUSH, 0xFF);
+            // 参考文档：4.2.5.2 读写FIFO操作
+            // 进场后，需要FIFO操作，让CSN高电平
+            // gpio_write(NFC_CS, 1);
+        }
+        {
+            printf("MAIN_IRQ:\n");
+            PIRQ(irq, MAIN_IRQ_RF_PWON  );
+            PIRQ(irq, MAIN_IRQ_ACTIVE   );
+            PIRQ(irq, MAIN_IRQ_RX_START );
+            PIRQ(irq, MAIN_IRQ_RX_DONE  );
+            PIRQ(irq, MAIN_IRQ_TX_DONE  );
+            PIRQ(irq, MAIN_IRQ_ARBIT    );
+            PIRQ(irq, MAIN_IRQ_FIFO     );
+            PIRQ(irq, MAIN_IRQ_AUX      );
+        }
+        if (irq & MAIN_IRQ_FIFO) {
+            fifo_irq = nfc_read_reg(FIFO_IRQ_REG);
+            if(fifo_irq & FIFO_IRQ_WL) irq_data_wl = 1;
+
+            printf("FIFO_IRQ:\n");
+            {
+                PIRQ(fifo_irq, FIFO_IRQ_WL       );
+                PIRQ(fifo_irq, FIFO_IRQ_OVERFLOW );
+                PIRQ(fifo_irq, FIFO_IRQ_FULL     );
+                PIRQ(fifo_irq, FIFO_IRQ_EMPTY    );
+            }
+        }
+        uint8_t aux_irq = irq & MAIN_IRQ_AUX ? nfc_read_reg(AUX_IRQ_REG) : 0;
+
+        if(aux_irq)
+        {
+            printf("AUX_IRQ: %d\n", aux_irq);
+            PIRQ(aux_irq, AUX_IRQ_EE_PROG_DONE );
+            PIRQ(aux_irq, AUX_IRQ_EE_PROG_ERROR);
+            PIRQ(aux_irq, AUX_IRQ_PARITY_ERROR );
+            PIRQ(aux_irq, AUX_IRQ_CRC_ERROR    );
+            PIRQ(aux_irq, AUX_IRQ_FRAMING_ERROR);
+        }
+
+        if(fifo_irq & FIFO_IRQ_OVERFLOW)
+        {
+            printf("!FIFO OVERFLOW! %d\n", nfc_read_reg(FIFO_WORDCNT_REG));
         }
         if(irq & MAIN_IRQ_RX_START)
         {
             irq_data_in = 1;
+            // uint8_t rats = nfc_read_reg(RF_RATS_REG);
+            // int fsd = 0;
+            // #define FSDI(k,v) case k:{ fsd = v; break;}
+            // switch((rats >> 4)&0x0F)
+            // {
+            //     FSDI(0, 16)
+            //     FSDI(1, 24)
+            //     FSDI(2, 32)
+            //     FSDI(3, 40)
+            //     FSDI(4, 48)
+            //     FSDI(5, 64)
+            //     FSDI(6, 96)
+            //     FSDI(7, 128)
+            //     default:
+            //         fsd = 256;
+            //         break;
+            // }
+            // printf("FSDI: %02X\n", rats>>4);
+            // printf("CDI: %02X\n", rats&0x0F);
         }
         if(irq_data_in && irq_data_wl)
         {
             irq_data_wl = 0;
+            printf("WATER LEVEL Read!\n");
             nfc_read_fifo(24, &rbuf[rlen]);
             rlen += 24;
         }
         if(irq & MAIN_IRQ_RX_DONE)
         {
-            printf("MAIN_IRQ_RX_DONE\n");
-            temp = (uint8_t)(nfc_read_reg(FIFO_WORDCNT)&0x3F);  // 接收完成后，计算fifo有多少字节
+            temp = nfc_read_reg(FIFO_WORDCNT_REG);  // 接收完成后，计算fifo有多少字节
             printf("MAIN_IRQ_RX_DONE: %d\n", temp);
-            nfc_read_fifo(temp, &rbuf[rlen]); // 读取最后的数据
+            if (temp > 0 && temp < 32) 
+            {
+                nfc_read_fifo(temp, &rbuf[rlen]); // 读取最后的数据
+                // nfc_write_reg(FIFO_FLUSH_REG, 0xFF);
+                rlen += temp;
+            }
             printf("MAIN_IRQ_RX_DONE End\n");
-            rlen += temp;
             irq_data_in = 0;
             break;
         }
-        printf("irq2: %d\n", irq);
-        WaitMs(1);
-        printf("irq3: %d\n", irq);
     }
-	if (rlen <= 2) {
+    if (rlen <= 2) {
+        if (rlen > 0) printf("ERROR rlen: %d\n", rlen);
         return 0;
-    }  
-	rlen -= 2;//2字节crc校验
-	return rlen;
+    }
+    rlen -= 2;//2字节crc校验
+    return rlen;
 }
+
+typedef enum {
+    NONE, 
+    CC_FILE,
+    NDEF_FILE 
+} T4T_FILE;
+
+uint8_t capability_container[15] =
+{   0x00, 0x0F,        //CCLEN  
+    0x20,              //Mapping Version 
+    0x00, 0xF6,        //MLe 必须是F6  写成FF超过256字节就会分帧  但是写成F6就不会分帧
+    0x00, 0xF6,        //MLc 必须是F6  写成FF超过256字节就会分帧  但是写成F6就不会分帧
+    0x04,              //NDEF消息格式 05的话就是私有
+    0x06,              //NDEF消息长度
+    0xE1, 0x04,        //NDEF FILE ID       NDEF的文件标识符
+    0x03, 0x84,        //NDEF最大长度
+    0x00,              //Read Access           可读
+    0x00               //Write Access          可写
+};
+
+uint8_t ndef_file[1024] = { 
+#ifdef HUAWEI_COM    
+    /*http://wwww.huawei.com*/
+    0x00,0x0F,                    
+    0xD1,0x01,0x0B,0x55,
+    0x01,0x68,0x75,0x61,
+    0x77,0x65,0x69,0x2E,
+    0x63,0x6F,0x6D,
+#endif    
+/*wechat*/
+#ifdef  NFC_TAG_WECHAT
+0x00,0x20,
+0xd4, 0x0f,0x0e, 0x61, 0x6e, 0x64, 0x72, 0x6f,
+0x69, 0x64,0x2e, 0x63, 0x6f, 0x6d, 0x3a, 0x70,
+0x6b, 0x67,0x63, 0x6f, 0x6d, 0x2e, 0x74, 0x65,
+0x6e, 0x63,0x65, 0x6e, 0x74, 0x2e, 0x6d, 0x6d,
+#endif
+#ifdef NFC_TAG_HISTREAMING
+0x00,0x3d,
+0xd4, 0x0f, 0x2b, 0x61, 0x6e, 0x64, 0x72, 0x6f,
+0x69, 0x64, 0x2e, 0x63, 0x6f, 0x6d, 0x3a, 0x70,
+0x6b, 0x67, 0x61, 0x70, 0x70, 0x6b, 0x69, 0x74,
+0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x73, 0x6f, 0x75,
+0x72, 0x63, 0x65, 0x2e, 0x67, 0x69, 0x7a, 0x77,
+0x69, 0x74, 0x73, 0x2e, 0x63, 0x6f, 0x6d, 0x2e, 
+0x6d, 0x79, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 
+0x61, 0x74, 0x69, 0x6f, 0x6e,
+#endif
+#ifdef NFC_TAG_TODAY_HEADLINE
+0x00,0x2d,
+0xd4, 0x0f, 0x1b, 0x61, 0x6e, 0x64, 0x72, 0x6f, 
+0x69, 0x64, 0x2e, 0x63, 0x6f, 0x6d, 0x3a, 0x70, 
+0x6b, 0x67, 0x63, 0x6f, 0x6d, 0x2e, 0x73, 0x73,
+0x2e, 0x61, 0x6e, 0x64, 0x72, 0x6f, 0x69, 0x64,
+0x2e, 0x61, 0x72, 0x74, 0x69, 0x63, 0x6c, 0x65, 
+0x2e, 0x6e, 0x65, 0x77, 0x73, 
+#endif
+
+#ifdef NFC_TAG_TAOBAO
+0x00,0x23, 
+0xd4, 0x0f, 0x11, 0x61, 0x6e, 0x64, 0x72, 0x6f, 
+0x69, 0x64, 0x2e, 0x63, 0x6f, 0x6d, 0x3a, 0x70, 
+0x6b, 0x67, 0x63, 0x6f, 0x6d, 0x2e, 0x74, 0x61, 
+0x6f, 0x62, 0x61, 0x6f, 0x2e, 0x74, 0x61, 0x6f, 
+0x62, 0x61, 0x6f, 
+#endif
+#ifdef NFC_TAG_HUAWEI_SMART_LIFE
+0x00,0x26, 
+0xd4, 0x0f, 0x14, 0x61, 0x6e, 0x64, 0x72, 0x6f, 
+0x69, 0x64, 0x2e, 0x63, 0x6f, 0x6d, 0x3a, 0x70, 
+0x6b, 0x67, 0x63, 0x6f, 0x6d, 0x2e, 0x68, 0x75, 
+0x61, 0x77, 0x65, 0x69, 0x2e, 0x73, 0x6d, 0x61, 
+0x72, 0x74, 0x68, 0x6f, 0x6d, 0x65, 
+#endif
+};
+
+T4T_FILE current_file = NONE;
 
 void nfc_t4t()
 {
@@ -186,9 +330,32 @@ void nfc_t4t()
 
         if (fm327_fifo[APDU_INS] == 0xA4) // SELECT 
         {
+            static uint8_t ndef_capability_container[] = {0xE1, 0x03};
+            static uint8_t ndef_id[] = {0xE1, 0x04};
             if (fm327_fifo[APDU_P1] == 0x00) // Select MF, DF or EF 
             {
-
+                if(fm327_fifo[APDU_LC] == sizeof(ndef_capability_container) 
+                    && 0 == memcmp(ndef_capability_container, &fm327_fifo[APDU_DATA], fm327_fifo[APDU_LC])) //
+                {
+                    nfc_write_fifo(status_ok, 3);
+                    nfc_write_reg(RF_TXEN_REG, 0x55);
+                    current_file = CC_FILE;
+                }
+                else if(fm327_fifo[APDU_LC] == sizeof(ndef_id) 
+                    && 0 == memcmp(ndef_id, &fm327_fifo[APDU_DATA], fm327_fifo[APDU_LC])) //
+                {
+                    nfc_write_fifo(status_ok, 3);
+                    nfc_write_reg(RF_TXEN_REG, 0x55);
+                    current_file = NDEF_FILE;
+                }
+                else
+                {
+                    printf("Can't suppert:");
+                    dump_hex(&fm327_fifo[APDU_DATA], fm327_fifo[APDU_LC]);
+                    nfc_write_fifo(status_word2, 3);
+                    nfc_write_reg(RF_TXEN_REG, 0x55);
+                    current_file = NONE;
+                }
             }
             else if (fm327_fifo[APDU_P1] == 0x04) // Select by DF name
             {
@@ -204,6 +371,32 @@ void nfc_t4t()
                 nfc_write_reg(RF_TXEN_REG, 0x55);
             }
         }
+        else if(fm327_fifo[APDU_INS] == 0xB0) // READ BINARY
+        {
+            if (current_file == CC_FILE)
+            {
+                nfc_write_fifo(status_ok, 1);
+                nfc_write_fifo(((uint8_t*)capability_container) + (fm327_fifo[APDU_P1] << 8) + fm327_fifo[APDU_P2], fm327_fifo[APDU_LC]);
+                nfc_write_fifo(&status_ok[1], 2);
+                nfc_write_reg(RF_TXEN_REG, 0x55);
+            }
+            else if(current_file == NDEF_FILE)
+            {
+
+            }
+            else
+            {
+
+            }
+        }
+        else if(fm327_fifo[APDU_INS] == 0xB0) // WRITE_BINARY
+        {
+
+        }
+        else
+        {
+
+        }
     }
     
 }
@@ -211,8 +404,9 @@ void nfc_t4t()
 bool _bInit = false;
 _attribute_ram_code_ void init_nfc(void)
 {
+
     i2c_gpio_set(I2C_GPIO_GROUP_C0C1);
-	i2c_master_init(C081_NFC_ADDR, (uint8_t)(CLOCK_SYS_CLOCK_HZ / (4 * 400000))); // 400kHZ
+    i2c_master_init(C081_NFC_ADDR, (uint8_t)(CLOCK_SYS_CLOCK_HZ / (4 * 400000))); // 400kHZ
     
     gpio_setup_up_down_resistor(NFC_CS, PM_PIN_PULLUP_10K);
     gpio_setup_up_down_resistor(NFC_IRQ, PM_PIN_PULLUP_10K);
@@ -223,8 +417,8 @@ _attribute_ram_code_ void init_nfc(void)
     gpio_set_output_en(NFC_IRQ, 0);
     gpio_set_input_en(NFC_IRQ, 1);
     // 先拉低上电,需要延迟至少100us
-    // gpio_write(NFC_CS, 0);
-    // sleep_us(200);
+    gpio_write(NFC_CS, 0);
+    sleep_us(200);
 
     // printf("MAIN_IRQ_REG:%d\n", nfc_read_reg(MAIN_IRQ_REG));
     // printf("MAIN_IRQ_MASK_REG:%d\n", nfc_read_reg(MAIN_IRQ_MASK_REG));
@@ -279,20 +473,30 @@ _attribute_ram_code_ void init_nfc(void)
     // //       NO_IRQ_PWON|NO_IRQ_L4
     uint8_t nfc_cfg = 0b11;
     nfc_write_reg(NFC_CFG_REG, nfc_cfg);
+    if (0)
+    {
+        _bInit = true;
+        i2c_write_byte(0x3B1, 2, 0x72); // 修改T0值，本来是0x72
+    }
 
+    nfc_write_reg(FIFO_FLUSH_REG, 0xFF);
 }
 
 void nfc_loop()
 {
     init_nfc();
-    rfLen = nfc_data_recv(fm327_fifo);
-    printf("rfLen: %d\n", rfLen);
-    // 14字节
-    // 02 00 A4 04 00 07 D2 76 00 00 85 01 01 00
-    if(rfLen) printf("nfc_loop2:%d\n", rfLen);
-    if(rfLen > 0)
+    while (1)
     {
-        dump_hex(fm327_fifo, rfLen);
-        nfc_t4t();
+        rfLen = nfc_data_recv(fm327_fifo);
+        if(rfLen) printf("rfLen: %d\n", rfLen);
+        // 14字节
+        // 02 00 A4 04 00 07 D2 76 00 00 85 01 01 00
+        if(rfLen > 0)
+        {
+            dump_hex(fm327_fifo, rfLen);
+            nfc_t4t();
+        }
+        sleep_ms(1);
     }
+    gpio_write(NFC_CS, 0);
 }
