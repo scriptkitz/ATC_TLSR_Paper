@@ -8,7 +8,6 @@
 #include "epd.h"
 #include "flash.h"
 #include "led.h"
-#include "nfc.h"
 #include "ota.h"
 #include "uart.h"
 

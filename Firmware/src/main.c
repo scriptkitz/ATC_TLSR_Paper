@@ -16,6 +16,7 @@
 #include "nfc.h"
 #include "ota.h"
 #include "uart.h"
+#include "nfc.h"
 
 _attribute_ram_code_ __attribute__((optimize("-Os"))) void irq_handler(void)
 {
