@@ -17,11 +17,12 @@ _attribute_ram_code_ void init_time(void)
 {
     one_second_trimmed += time_trime;
     current_unix_time = 0;
+    last_clock_increase = clock_time();
 }
 
 _attribute_ram_code_ void handler_time(void)
 {
-    if (clock_time() - last_clock_increase >= one_second_trimmed)
+    while (clock_time() - last_clock_increase >= one_second_trimmed)
     {
         last_clock_increase += one_second_trimmed;
         current_unix_time++;
